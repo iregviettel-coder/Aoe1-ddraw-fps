@@ -1,0 +1,169 @@
+name: Build ddraw.dll
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:     [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  # ── Build 1: MSVC x86 (32-bit) ─────────────────────────────
+  build-msvc:
+    name: MSVC x86 (32-bit)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Setup MSVC x86 (32-bit) dev environment
+      - name: Setup MSVC x86
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86          # ← critical: 32-bit toolchain
+
+      # DirectX SDK is no longer shipped standalone on modern Windows SDK.
+      # ddraw.h + ddraw.lib are included in Windows SDK 8.1+ under um/
+      # We locate them via vswhere / WindowsSdkDir env var set by ilammy.
+      - name: Verify SDK headers
+        shell: cmd
+        run: |
+          echo WindowsSdkDir = %WindowsSdkDir%
+          echo WindowsSDKVersion = %WindowsSDKVersion%
+          dir "%WindowsSdkDir%Include\%WindowsSDKVersion%um\ddraw.h" 2>nul || (
+            echo WARNING: ddraw.h not found in Windows SDK um, trying legacy path...
+          )
+
+      - name: Build with MSVC (cl.exe)
+        shell: cmd
+        run: |
+          :: Compile all sources to object files
+          cl /nologo /std:c++17 /O2 /MT /EHsc /W3 ^
+             /DWIN32 /D_WINDOWS /DUNICODE /D_UNICODE ^
+             /c dllmain.cpp ddraw7_wrapper.cpp surface_wrapper.cpp
+
+          :: Link into DLL
+          link /nologo /DLL ^
+               /OUT:ddraw.dll ^
+               /MACHINE:X86 ^
+               dllmain.obj ddraw7_wrapper.obj surface_wrapper.obj ^
+               ddraw.lib dxguid.lib gdi32.lib user32.lib kernel32.lib
+
+      - name: Show build output
+        shell: cmd
+        run: |
+          dir ddraw.dll
+          echo.
+          echo Build succeeded!
+
+      - name: Upload artifact (MSVC)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddraw-msvc-x86
+          path: ddraw.dll
+          if-no-files-found: error
+
+  # ── Build 2: MinGW i686 via MSYS2 (32-bit) ─────────────────
+  build-mingw:
+    name: MinGW i686 (32-bit)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2 + MinGW i686
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW32
+          update: true
+          install: >-
+            mingw-w64-i686-gcc
+            mingw-w64-i686-gcc-libs
+            make
+
+      - name: Build with MinGW g++
+        shell: msys2 {0}
+        run: |
+          i686-w64-mingw32-g++ \
+            -std=c++17 -O2 -m32 \
+            -DWIN32 -D_WIN32 -DUNICODE -D_UNICODE \
+            -shared \
+            -static-libgcc -static-libstdc++ \
+            -Wl,--kill-at \
+            -o ddraw.dll \
+            dllmain.cpp ddraw7_wrapper.cpp surface_wrapper.cpp \
+            -lddraw -ldxguid -lgdi32 -luser32 -lkernel32
+
+      - name: Show build output
+        shell: msys2 {0}
+        run: |
+          ls -lh ddraw.dll
+          file ddraw.dll
+
+      - name: Upload artifact (MinGW)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddraw-mingw-i686
+          path: ddraw.dll
+          if-no-files-found: error
+
+  # ── Release: publish DLL when a tag v* is pushed ───────────
+  release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: [ build-msvc, build-mingw ]
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write   # needed to create releases
+
+    steps:
+      - name: Download MSVC artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ddraw-msvc-x86
+          path: release/msvc/
+
+      - name: Download MinGW artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ddraw-mingw-i686
+          path: release/mingw/
+
+      - name: Rename artifacts
+        run: |
+          mv release/msvc/ddraw.dll  release/ddraw-msvc.dll
+          mv release/mingw/ddraw.dll release/ddraw-mingw.dll
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "ddraw FPS Overlay ${{ github.ref_name }}"
+          body: |
+            ## ddraw FPS Overlay – Age of Empires 1
+
+            ### Cài đặt
+            1. Tải `ddraw-msvc.dll` (khuyên dùng) hoặc `ddraw-mingw.dll`
+            2. Đổi tên thành `ddraw.dll`
+            3. Copy vào thư mục chứa `empires.exe`
+            4. Chạy game — FPS hiện góc trên bên trái
+
+            ### Gỡ cài đặt
+            Xóa `ddraw.dll` trong thư mục game.
+
+            | Build | Compiler | Runtime |
+            |-------|----------|---------|
+            | `ddraw-msvc.dll` | MSVC (cl.exe) | Static `/MT` – không cần runtime |
+            | `ddraw-mingw.dll` | MinGW i686 g++ | Static libgcc/libstdc++ |
+
+            ### FPS overlay màu sắc
+            - 🟢 ≥ 60 FPS – xanh lá
+            - 🟡 30–59 FPS – vàng
+            - 🔴 < 30 FPS – đỏ
+          files: |
+            release/ddraw-msvc.dll
+            release/ddraw-mingw.dll
+          draft: false
+          prerelease: false
