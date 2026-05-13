@@ -7,7 +7,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <ddraw.h>
-#include <d3d9.h>
 #include <string>
 #include <chrono>
 #include <deque>
