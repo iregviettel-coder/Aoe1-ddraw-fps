@@ -1,0 +1,46 @@
+#pragma once
+#include "ddraw_wrapper.h"
+
+class DDraw7Wrapper : public IDirectDraw7
+{
+public:
+    DDraw7Wrapper(IDirectDraw7* real);
+
+    // IUnknown
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID, void**) override;
+    ULONG   STDMETHODCALLTYPE AddRef()  override;
+    ULONG   STDMETHODCALLTYPE Release() override;
+
+    // Intercepted
+    HRESULT STDMETHODCALLTYPE CreateSurface(LPDDSURFACEDESC2, LPDIRECTDRAWSURFACE7*, IUnknown*) override;
+
+    // Pass-through
+    HRESULT STDMETHODCALLTYPE Compact() override;
+    HRESULT STDMETHODCALLTYPE CreateClipper(DWORD, LPDIRECTDRAWCLIPPER*, IUnknown*) override;
+    HRESULT STDMETHODCALLTYPE CreatePalette(DWORD, LPPALETTEENTRY, LPDIRECTDRAWPALETTE*, IUnknown*) override;
+    HRESULT STDMETHODCALLTYPE DuplicateSurface(LPDIRECTDRAWSURFACE7, LPDIRECTDRAWSURFACE7*) override;
+    HRESULT STDMETHODCALLTYPE EnumDisplayModes(DWORD, LPDDSURFACEDESC2, LPVOID, LPDDENUMMODESCALLBACK2) override;
+    HRESULT STDMETHODCALLTYPE EnumSurfaces(DWORD, LPDDSURFACEDESC2, LPVOID, LPDDENUMSURFACESCALLBACK7) override;
+    HRESULT STDMETHODCALLTYPE FlipToGDISurface() override;
+    HRESULT STDMETHODCALLTYPE GetCaps(LPDDCAPS, LPDDCAPS) override;
+    HRESULT STDMETHODCALLTYPE GetDisplayMode(LPDDSURFACEDESC2) override;
+    HRESULT STDMETHODCALLTYPE GetFourCCCodes(LPDWORD, LPDWORD) override;
+    HRESULT STDMETHODCALLTYPE GetGDISurface(LPDIRECTDRAWSURFACE7*) override;
+    HRESULT STDMETHODCALLTYPE GetMonitorFrequency(LPDWORD) override;
+    HRESULT STDMETHODCALLTYPE GetScanLine(LPDWORD) override;
+    HRESULT STDMETHODCALLTYPE GetSurfaceFromDC(HDC, LPDIRECTDRAWSURFACE7*) override;
+    HRESULT STDMETHODCALLTYPE GetVerticalBlankStatus(LPBOOL) override;
+    HRESULT STDMETHODCALLTYPE Initialize(GUID*) override;
+    HRESULT STDMETHODCALLTYPE RestoreAllSurfaces() override;
+    HRESULT STDMETHODCALLTYPE RestoreDisplayMode() override;
+    HRESULT STDMETHODCALLTYPE SetCooperativeLevel(HWND, DWORD) override;
+    HRESULT STDMETHODCALLTYPE SetDisplayMode(DWORD, DWORD, DWORD, DWORD, DWORD) override;
+    HRESULT STDMETHODCALLTYPE StartModeTest(LPSIZE, DWORD, DWORD) override;
+    HRESULT STDMETHODCALLTYPE TestCooperativeLevel() override;
+    HRESULT STDMETHODCALLTYPE EvaluateMode(DWORD, DWORD*) override;
+    HRESULT STDMETHODCALLTYPE WaitForVerticalBlank(DWORD, HANDLE) override;
+
+private:
+    IDirectDraw7* real_;
+    ULONG         refCount_;
+};
